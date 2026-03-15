@@ -3,6 +3,10 @@ local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
+if setclipboard then
+    setclipboard("https://discord.gg/3S5PDhmzYD")
+end
+
 local DIST_DOT = 1000
 local DIST_MAX = 5000
 
@@ -63,15 +67,23 @@ local function removeESP(player)
     end
 end
 
-local watermark = Drawing.new("Text")
-watermark.Text = "script made by bailando / dc: iszymii"
-watermark.Size = 25
-watermark.Color = Color3.fromRGB(200, 200, 200)
-watermark.Outline = true
-watermark.OutlineColor = Color3.fromRGB(0, 0, 0)
-watermark.Font = 4
-watermark.Visible = true
-watermark.Position = Vector2.new(10, camera.ViewportSize.Y - 50)
+local watermark1 = Drawing.new("Text")
+watermark1.Text = "script made by bailando"
+watermark1.Size = 25
+watermark1.Color = Color3.fromRGB(255, 255, 255)
+watermark1.Outline = true
+watermark1.OutlineColor = Color3.fromRGB(0, 0, 0)
+watermark1.Font = 4
+watermark1.Visible = true
+
+local watermark2 = Drawing.new("Text")
+watermark2.Text = "click to copy discord link"
+watermark2.Size = 18
+watermark2.Color = Color3.fromRGB(88, 101, 242)
+watermark2.Outline = true
+watermark2.OutlineColor = Color3.fromRGB(0, 0, 0)
+watermark2.Font = 4
+watermark2.Visible = true
 
 local function addESP(player)
     if player == localPlayer then return end
@@ -125,7 +137,7 @@ local function addESP(player)
         local billboardDot = Instance.new("BillboardGui")
         billboardDot.AlwaysOnTop = true
         billboardDot.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
-        billboardDot.Size = UDim2.new(0, 50, 0, 36)
+        billboardDot.Size = UDim2.new(0, 50, 0, 46)
         billboardDot.Adornee = rootPart
         billboardDot.Parent = rootPart
         billboardDot.Enabled = false
@@ -163,6 +175,18 @@ local function addESP(player)
         labelName.Text = player.Name
         labelName.Parent = billboardDot
 
+        local labelTeam = Instance.new("TextLabel")
+        labelTeam.Size = UDim2.new(1, 0, 0, 10)
+        labelTeam.Position = UDim2.new(0, 0, 0, 34)
+        labelTeam.BackgroundTransparency = 1
+        labelTeam.TextColor3 = Color3.fromRGB(50, 150, 255)
+        labelTeam.TextStrokeTransparency = 0.4
+        labelTeam.Font = Enum.Font.Gotham
+        labelTeam.TextSize = 8
+        labelTeam.Text = "[team]"
+        labelTeam.Visible = false
+        labelTeam.Parent = billboardDot
+
         espData[player] = {
             highlight = highlight,
             billboardBottom = billboardBottom,
@@ -171,6 +195,7 @@ local function addESP(player)
             labelDist = labelDist,
             labelItem = labelItem,
             labelDistDot = labelDistDot,
+            labelTeam = labelTeam,
             rootPart = rootPart,
             humanoid = humanoid,
             character = character,
@@ -198,7 +223,6 @@ local function addESP(player)
     end
 end
 
--- Odświeżaj squad co 2 sekundy
 local squadMembers = {}
 task.spawn(function()
     while true do
@@ -208,7 +232,13 @@ task.spawn(function()
 end)
 
 RunService.RenderStepped:Connect(function()
-    watermark.Position = Vector2.new(10, camera.ViewportSize.Y - 50)
+    local t = tick() * 0.5
+    local r = math.floor((math.sin(t) * 0.5 + 0.5) * 255)
+    local g = math.floor((math.sin(t + 2) * 0.5 + 0.5) * 255)
+    local b = math.floor((math.sin(t + 4) * 0.5 + 0.5) * 255)
+    watermark1.Color = Color3.fromRGB(r, g, b)
+    watermark1.Position = Vector2.new(10, camera.ViewportSize.Y - 75)
+    watermark2.Position = Vector2.new(10, camera.ViewportSize.Y - 48)
 
     for player, data in pairs(espData) do
         if not data.character or not data.character.Parent then
@@ -239,21 +269,25 @@ RunService.RenderStepped:Connect(function()
         end
 
         local isSquadMate = squadMembers[player.Name] == true
-
         local dotMode = dist >= DIST_DOT
+
         data.highlight.Enabled = not dotMode
         data.billboardBottom.Enabled = not dotMode
         data.billboardDot.Enabled = dotMode
 
+        if not dotMode then
+            data.dot.BackgroundColor3 = Color3.fromRGB(0, 210, 80)
+        end
+
         if dotMode then
-            local t = math.clamp((dist - 1000) / 4000, 0, 1)
-            local r = math.floor((1 - t) * 220)
-            local g = math.floor(t * 210)
-            -- Kropka niebieska dla squadmate
+            data.labelTeam.Visible = isSquadMate
             if isSquadMate then
                 data.dot.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
             else
-                data.dot.BackgroundColor3 = Color3.fromRGB(r, g, 0)
+                local t2 = math.clamp((dist - 1000) / 4000, 0, 1)
+                local dr = math.floor((1 - t2) * 220)
+                local dg = math.floor(t2 * 210)
+                data.dot.BackgroundColor3 = Color3.fromRGB(dr, dg, 0)
             end
             data.labelDistDot.Text = dist .. "m"
         else
@@ -265,7 +299,6 @@ RunService.RenderStepped:Connect(function()
             data.labelItem.Text = getEquipped(data.character)
 
             if isSquadMate then
-                -- Squadmate zawsze niebieski
                 data.highlight.FillColor = Color3.fromRGB(0, 100, 255)
                 data.highlight.OutlineColor = Color3.fromRGB(50, 150, 255)
             elseif isVisible(data.character) then
