@@ -9,17 +9,32 @@ local DIST_MAX = 5000
 local espData = {}
 local charactersFolder = workspace:FindFirstChild("Characters")
 
-local function czyWidoczny(postac)
-    local rootPart = postac:FindFirstChild("HumanoidRootPart")
+local function getSquadMembers()
+    local members = {}
+    local playerList = localPlayer.PlayerGui:FindFirstChild("PlayerList", true)
+    if not playerList then return members end
+    local squadList = playerList:FindFirstChild("SquadList", true)
+    if not squadList then return members end
+    for _, obj in ipairs(squadList:GetDescendants()) do
+        if obj:IsA("TextLabel") and obj.Name == "NameLabel" and obj.Text ~= "" then
+            members[obj.Text] = true
+        end
+    end
+    return members
+end
+
+local function isVisible(character)
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not rootPart then return false end
     local origin = camera.CFrame.Position
     local direction = rootPart.Position - origin
     local rayParams = RaycastParams.new()
-    local filter = {postac}
+    local filter = {character}
     if localPlayer.Character then table.insert(filter, localPlayer.Character) end
     if charactersFolder then
-        local localChar = charactersFolder:FindFirstChild(localPlayer.Name)
-        if localChar then table.insert(filter, localChar) end
+        for _, char in ipairs(charactersFolder:GetChildren()) do
+            table.insert(filter, char)
+        end
     end
     rayParams.FilterDescendantsInstances = filter
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -27,24 +42,24 @@ local function czyWidoczny(postac)
     return result == nil
 end
 
-local function getEquipped(postac)
-    local equipped = postac:FindFirstChild("Equipped")
+local function getEquipped(character)
+    local equipped = character:FindFirstChild("Equipped")
     if equipped then
         for _, obj in ipairs(equipped:GetChildren()) do
             if obj:IsA("Model") then return obj.Name end
         end
     end
-    local tool = postac:FindFirstChildWhichIsA("Tool")
+    local tool = character:FindFirstChildWhichIsA("Tool")
     if tool then return tool.Name end
     return "No Weapon"
 end
 
-local function usunESP(gracz)
-    if espData[gracz] then
-        if espData[gracz].highlight then espData[gracz].highlight:Destroy() end
-        if espData[gracz].billboardBottom then espData[gracz].billboardBottom:Destroy() end
-        if espData[gracz].billboardDot then espData[gracz].billboardDot:Destroy() end
-        espData[gracz] = nil
+local function removeESP(player)
+    if espData[player] then
+        if espData[player].highlight then espData[player].highlight:Destroy() end
+        if espData[player].billboardBottom then espData[player].billboardBottom:Destroy() end
+        if espData[player].billboardDot then espData[player].billboardDot:Destroy() end
+        espData[player] = nil
     end
 end
 
@@ -58,14 +73,14 @@ watermark.Font = 4
 watermark.Visible = true
 watermark.Position = Vector2.new(10, camera.ViewportSize.Y - 50)
 
-local function dodajESP(gracz)
-    if gracz == localPlayer then return end
+local function addESP(player)
+    if player == localPlayer then return end
 
-    local function setupESP(postac)
-        usunESP(gracz)
+    local function setupESP(character)
+        removeESP(player)
 
-        local humanoid = postac:WaitForChild("Humanoid", 5)
-        local rootPart = postac:WaitForChild("HumanoidRootPart", 5)
+        local humanoid = character:WaitForChild("Humanoid", 5)
+        local rootPart = character:WaitForChild("HumanoidRootPart", 5)
         if not humanoid or not rootPart then return end
 
         local highlight = Instance.new("Highlight")
@@ -74,8 +89,8 @@ local function dodajESP(gracz)
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         highlight.FillColor = Color3.fromRGB(220, 40, 40)
         highlight.OutlineColor = Color3.fromRGB(255, 60, 60)
-        highlight.Adornee = postac
-        highlight.Parent = postac
+        highlight.Adornee = character
+        highlight.Parent = character
 
         local billboardBottom = Instance.new("BillboardGui")
         billboardBottom.AlwaysOnTop = true
@@ -137,18 +152,18 @@ local function dodajESP(gracz)
         dotCorner.CornerRadius = UDim.new(1, 0)
         dotCorner.Parent = dot
 
-        local labelNazwa = Instance.new("TextLabel")
-        labelNazwa.Size = UDim2.new(1, 0, 0, 10)
-        labelNazwa.Position = UDim2.new(0, 0, 0, 23)
-        labelNazwa.BackgroundTransparency = 1
-        labelNazwa.TextColor3 = Color3.fromRGB(220, 220, 220)
-        labelNazwa.TextStrokeTransparency = 0.4
-        labelNazwa.Font = Enum.Font.Gotham
-        labelNazwa.TextSize = 8
-        labelNazwa.Text = gracz.Name
-        labelNazwa.Parent = billboardDot
+        local labelName = Instance.new("TextLabel")
+        labelName.Size = UDim2.new(1, 0, 0, 10)
+        labelName.Position = UDim2.new(0, 0, 0, 23)
+        labelName.BackgroundTransparency = 1
+        labelName.TextColor3 = Color3.fromRGB(220, 220, 220)
+        labelName.TextStrokeTransparency = 0.4
+        labelName.Font = Enum.Font.Gotham
+        labelName.TextSize = 8
+        labelName.Text = player.Name
+        labelName.Parent = billboardDot
 
-        espData[gracz] = {
+        espData[player] = {
             highlight = highlight,
             billboardBottom = billboardBottom,
             billboardDot = billboardDot,
@@ -158,37 +173,46 @@ local function dodajESP(gracz)
             labelDistDot = labelDistDot,
             rootPart = rootPart,
             humanoid = humanoid,
-            postac = postac,
+            character = character,
         }
 
         humanoid.Died:Connect(function()
-            usunESP(gracz)
+            removeESP(player)
         end)
     end
 
-    local postac = gracz.Character
-    if not postac then
+    local character = player.Character
+    if not character then
         if charactersFolder then
-            postac = charactersFolder:FindFirstChild(gracz.Name)
+            character = charactersFolder:FindFirstChild(player.Name)
         end
     end
-    if postac then setupESP(postac) end
+    if character then setupESP(character) end
 
-    gracz.CharacterAdded:Connect(function(p) setupESP(p) end)
+    player.CharacterAdded:Connect(function(c) setupESP(c) end)
 
     if charactersFolder then
         charactersFolder.ChildAdded:Connect(function(child)
-            if child.Name == gracz.Name then setupESP(child) end
+            if child.Name == player.Name then setupESP(child) end
         end)
     end
 end
 
+-- Odświeżaj squad co 2 sekundy
+local squadMembers = {}
+task.spawn(function()
+    while true do
+        squadMembers = getSquadMembers()
+        task.wait(2)
+    end
+end)
+
 RunService.RenderStepped:Connect(function()
     watermark.Position = Vector2.new(10, camera.ViewportSize.Y - 50)
 
-    for gracz, dane in pairs(espData) do
-        if not dane.postac or not dane.postac.Parent then
-            usunESP(gracz)
+    for player, data in pairs(espData) do
+        if not data.character or not data.character.Parent then
+            removeESP(player)
             continue
         end
 
@@ -204,49 +228,62 @@ RunService.RenderStepped:Connect(function()
 
         local dist = 9999
         if localChar and localChar:FindFirstChild("HumanoidRootPart") then
-            dist = math.floor((dane.rootPart.Position - localChar.HumanoidRootPart.Position).Magnitude)
+            dist = math.floor((data.rootPart.Position - localChar.HumanoidRootPart.Position).Magnitude)
         end
 
         if dist > DIST_MAX then
-            dane.highlight.Enabled = false
-            dane.billboardBottom.Enabled = false
-            dane.billboardDot.Enabled = false
+            data.highlight.Enabled = false
+            data.billboardBottom.Enabled = false
+            data.billboardDot.Enabled = false
             continue
         end
 
-        local trybKropki = dist >= DIST_DOT
-        dane.highlight.Enabled = not trybKropki
-        dane.billboardBottom.Enabled = not trybKropki
-        dane.billboardDot.Enabled = trybKropki
+        local isSquadMate = squadMembers[player.Name] == true
 
-        if trybKropki then
+        local dotMode = dist >= DIST_DOT
+        data.highlight.Enabled = not dotMode
+        data.billboardBottom.Enabled = not dotMode
+        data.billboardDot.Enabled = dotMode
+
+        if dotMode then
             local t = math.clamp((dist - 1000) / 4000, 0, 1)
             local r = math.floor((1 - t) * 220)
             local g = math.floor(t * 210)
-            dane.dot.BackgroundColor3 = Color3.fromRGB(r, g, 0)
-            dane.labelDistDot.Text = dist .. "m"
+            -- Kropka niebieska dla squadmate
+            if isSquadMate then
+                data.dot.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
+            else
+                data.dot.BackgroundColor3 = Color3.fromRGB(r, g, 0)
+            end
+            data.labelDistDot.Text = dist .. "m"
         else
             local scale = math.clamp(40 / math.max(dist, 1), 0.4, 1.8)
-            dane.billboardBottom.Size = UDim2.new(0, math.floor(100 * scale), 0, math.floor(30 * scale))
-            dane.labelDist.TextSize = math.clamp(math.floor(9 * scale), 7, 13)
-            dane.labelItem.TextSize = math.clamp(math.floor(9 * scale), 7, 13)
-            dane.labelDist.Text = dist .. "m"
-            dane.labelItem.Text = getEquipped(dane.postac)
+            data.billboardBottom.Size = UDim2.new(0, math.floor(100 * scale), 0, math.floor(30 * scale))
+            data.labelDist.TextSize = math.clamp(math.floor(9 * scale), 7, 13)
+            data.labelItem.TextSize = math.clamp(math.floor(9 * scale), 7, 13)
+            data.labelDist.Text = dist .. "m"
+            data.labelItem.Text = getEquipped(data.character)
 
-            if czyWidoczny(dane.postac) then
-                dane.highlight.FillColor = Color3.fromRGB(0, 210, 80)
-                dane.highlight.OutlineColor = Color3.fromRGB(0, 255, 100)
+            if isSquadMate then
+                -- Squadmate zawsze niebieski
+                data.highlight.FillColor = Color3.fromRGB(0, 100, 255)
+                data.highlight.OutlineColor = Color3.fromRGB(50, 150, 255)
+            elseif isVisible(data.character) then
+                data.highlight.FillColor = Color3.fromRGB(0, 210, 80)
+                data.highlight.OutlineColor = Color3.fromRGB(0, 255, 100)
             else
-                dane.highlight.FillColor = Color3.fromRGB(220, 40, 40)
-                dane.highlight.OutlineColor = Color3.fromRGB(255, 60, 60)
+                data.highlight.FillColor = Color3.fromRGB(220, 40, 40)
+                data.highlight.OutlineColor = Color3.fromRGB(255, 60, 60)
             end
         end
     end
 end)
 
-Players.PlayerAdded:Connect(dodajESP)
-Players.PlayerRemoving:Connect(usunESP)
+Players.PlayerAdded:Connect(addESP)
+Players.PlayerRemoving:Connect(removeESP)
 
-for _, gracz in ipairs(Players:GetPlayers()) do
-    dodajESP(gracz)
+for _, player in ipairs(Players:GetPlayers()) do
+    addESP(player)
 end
+
+print("ESP active!")
